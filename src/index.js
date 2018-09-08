@@ -28,7 +28,7 @@ export const number = (value: number): Token => ({
 })
 
 const constructScript = (executorFunc: Function | null) => {
-  return (parts: Array<string>, args: Array<Token>) => {
+  return (parts: Array<string>, ...args: Array<Token>) => {
     const keyMapping: { [key: string]: number } = {}
     const argMapping: { [arg: string]: number } = {}
     let keyCount = 0
@@ -77,7 +77,7 @@ export const script = (parts: Array<string> | Function, ...args: Array<Token>) =
     return constructScript(parts)
   }
 
-  return constructScript(null)(parts, args)
+  return constructScript(null)(parts, ...args)
 }
 
 const defaultExecutor = async (redis: Object, script: string, keyCount: number, keys: Array<string>, args: Array<any>) => {
