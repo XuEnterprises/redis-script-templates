@@ -1,11 +1,10 @@
 /**
  * @author David Xu
- * @flow
  */
 
-import 'regenerator-runtime/runtime'
+type Token = { type: string, value: string }
 
-type Token = {type: string, value: string}
+type ExecutorFunc<Redis> = (redis: Redis, script: string, keyCount: number, keys: string[], args: any[]) => Promise<any>
 
 export const key = (key: string): Token => ({
   type: 'key',
@@ -27,8 +26,8 @@ export const number = (value: number): Token => ({
   value: String(value),
 })
 
-const constructScript = (executorFunc: Function | null) => {
-  return (parts: Array<string>, ...args: Array<Token>) => {
+const constructScript = <T>(executorFunc: ExecutorFunc<T> | null) => {
+  return (parts: string[], ...args: Token[]) => {
     const keyMapping: { [key: string]: number } = {}
     const argMapping: { [arg: string]: number } = {}
     let keyCount = 0
@@ -72,7 +71,7 @@ const constructScript = (executorFunc: Function | null) => {
   }
 }
 
-export const script = (parts: Array<string> | Function, ...args: Array<Token>) => {
+export const script = (parts: string[] | ExecutorFunc<any>, ...args: Token[]) => {
   if (typeof parts === 'function') {
     return constructScript(parts)
   }
@@ -80,7 +79,7 @@ export const script = (parts: Array<string> | Function, ...args: Array<Token>) =
   return constructScript(null)(parts, ...args)
 }
 
-const defaultExecutor = async (redis: Object, script: string, keyCount: number, keys: Array<string>, args: Array<any>) => {
+const defaultExecutor = async (redis: any, script: string, keyCount: number, keys: string[], args: any[]) => {
   return await redis.evalauto(
     script,
     keyCount,
@@ -89,7 +88,7 @@ const defaultExecutor = async (redis: Object, script: string, keyCount: number, 
   )
 }
 
-export const redisExecutor = (redis: Object, script: string, keyCount: number, keys: Array<string>, args: Array<any>) => {
+export const redisExecutor = (redis: any, script: string, keyCount: number, keys: string[], args: any[]) => {
   return new Promise((resolve, reject) => {
     redis.eval(
       script,
@@ -107,23 +106,22 @@ export const redisExecutor = (redis: Object, script: string, keyCount: number, k
 
 export const redisThunkExecutor = defaultExecutor
 
-class Script<
-  Keys: {[key: string]: number},
-  Argv: {[arg: string]: number},
-> {
+class Script<Keys extends { [key: string]: number },
+  Argv extends { [arg: string]: number },
+  > {
 
-  _script: string
-  _keyMapping: Keys
-  _argMapping: Argv
-  _keyCount: number
-  _argCount: number
-  _executor: Function
+  private readonly _script: string
+  private readonly _keyMapping: Keys
+  private readonly _argMapping: Argv
+  private readonly _keyCount: number
+  private readonly _argCount: number
+  private readonly _executor: ExecutorFunc<any>
 
   constructor(
     script: string,
     keyMapping: Keys,
     argMapping: Argv,
-    executor: Function | null,
+    executor: ExecutorFunc<any> | null,
   ) {
     this._script = script
     this._keyMapping = keyMapping
@@ -149,11 +147,11 @@ class Script<
     keys,
     args,
   }: {
-    keys: { [key: $Keys<Keys>]: string },
-    args: { [arg: $Keys<Argv>]: any },
+    keys: Record<keyof Keys, string>,
+    args: Record<keyof Argv, any>,
   }) {
-    const keyArray = new Array(this._keyCount)
-    const argArray = new Array(this._argCount)
+    const keyArray: string[] = new Array(this._keyCount)
+    const argArray: any[] = new Array(this._argCount)
 
     for (let key in this._keyMapping) {
       keyArray[this._keyMapping[key] - 1] = keys[key]
